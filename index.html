@@ -1,0 +1,876 @@
+<!-- Chosen Palette: Warm Neutral & Chula Pink Accent (Background: #FDFBF7, Card: #FFFFFF, Primary: #1E293B, Secondary Accent: #DE1C7D / #0F766E) -->
+<!-- Application Structure Plan:
+    1. Header & Quick Summary Banner: Header Minimalist พร้อมวงกลมแสดงความก้าวหน้ารวม (Overall Progress) และการ์ดนับถอยหลัง (Countdown Timers) สำหรับ TGAT/TPAT3 และ A-Level 
+    2. Interactive Track Switcher & Score Calculator Section: ส่วนคำนวณคะแนนตามเกณฑ์ CP (เน้น TPAT3 40% + Math1 20% + Phys 20% + TGAT 20%) และ CEDT (เน้น Math1 50% + TPAT3 30% + TGAT 20%) พร้อมกราฟเปรียบเทียบคะแนนประเมินกับเกณฑ์ย้อนหลังด้วย Chart.js
+    3. Detailed Syllabus & Topic Checklist (Interactive Tracker): แบ่งตามวิชา (Math 1, Physics, TPAT3, TGAT1-3) รายละเอียดบทเรียนลึกตาม Exam Blueprint พร้อมปุ่มบันทึกสถานะลง LocalStorage อัตโนมัติและแสดง Progress bar แยกรายวิชา
+    4. TCAS Master Timeline & Exam Calendar: ปฏิทินกำหนดการ TCAS68/69 แสดงขั้นตอนสำคัญ (ลงทะเบียน, สมัครสอบ, สอบจริง, ประกาศผล, เลือกอันดับ) พร้อมฟังก์ชันกรองดูตามช่วงเวลา
+    5. Blueprint & Strategy Insights Modal/Drawer: แท็บสรุปข้อดี-ข้อเสีย กลยุทธ์การอ่าน และจุดเน้นแต่ละวิชา
+-->
+<!-- Visualization & Content Choices:
+    - Overall & Subject Progress: Donut Chart & Progress Bars (HTML/CSS + Chart.js Canvas) เพื่อความคมชัด ไร้ปัญหา SVG
+    - Score Target vs Real Estimation: Horizontal Bar Chart (Chart.js) แสดงเปรียบเทียบคะแนนประเมินตนเองกับเกณฑ์คะแนนต่ำสุดย้อนหลัง (CP ~72.3, CEDT ~58.0)
+    - Interactive Checkbox Checklist: Structured HTML List + Vanilla JS LocalStorage sync Dynamic UI Updates
+    - Calendar Timeline: Tailwind Clean Stepper / Timeline Layout + Interactive Status Badge
+    - Confirmation: NO SVG / NO Mermaid JS used. Visual elements build with Canvas + HTML/CSS Pure Tailwind icons.
+-->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+<!DOCTYPE html>
+<html lang="th" class="h-full bg-[#FDFBF7]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chula CompEng Admission & Study Progress Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Prompt & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                    },
+                    colors: {
+                        chula: {
+                            pink: '#DE1C7D',
+                            dark: '#8C0E4B',
+                            light: '#FDF0F6'
+                        },
+                        neutral: {
+                            bg: '#FDFBF7',
+                            card: '#FFFFFF',
+                            border: '#E2E8F0',
+                            text: '#1E293B',
+                            muted: '#64748B'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Prompt', sans-serif; background-color: #FDFBF7; color: #1E293B; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 550px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 260px;
+            max-height: 300px;
+        }
+        @media (min-width: 768px) {
+            .chart-container { height: 280px; }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #F1F5F9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+    </style>
+</head>
+<body class="min-h-full flex flex-col justify-between antialiased">
+
+    <!-- TOP HEADER -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-chula-pink to-chula-dark flex items-center justify-center text-white font-bold text-xl shadow-sm">
+                    CU
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight leading-none">Chula CompEng Admission Tracker</h1>
+                    <p class="text-xs text-slate-500 mt-1">ระบบวางแผน เตรียมสอบ และคำนวณคะแนนเข้าวิศวะคอมฯ จุฬาฯ (CP & CEDT)</p>
+                </div>
+            </div>
+
+            <!-- Quick Stats & Switcher -->
+            <div class="flex items-center gap-4 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                <button id="nav-checklist-btn" onclick="switchTab('checklist')" class="px-4 py-2 text-xs font-semibold rounded-lg bg-white text-slate-800 shadow-sm transition-all">📋 บทเรียน & สถิติ</button>
+                <button id="nav-calc-btn" onclick="switchTab('calc')" class="px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">🧮 คำนวณคะแนน</button>
+                <button id="nav-calendar-btn" onclick="switchTab('calendar')" class="px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">📅 ปฏิทิน TCAS</button>
+                <button id="nav-info-btn" onclick="switchTab('info')" class="px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">💡 เกณฑ์ & กลยุทธ์</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 grow w-full">
+
+        <!-- INTRO SECTION & SUMMARY DASHBOARD -->
+        <section class="mb-8">
+            <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-center">
+                    
+                    <!-- Progress Overview Widget -->
+                    <div class="flex items-center gap-4 lg:border-r border-slate-100 lg:pr-6">
+                        <div class="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+                            <canvas id="overallProgressChart"></canvas>
+                            <span id="overallPercentText" class="absolute text-lg font-bold text-slate-800">0%</span>
+                        </div>
+                        <div>
+                            <span class="text-xs font-semibold tracking-wider uppercase text-chula-pink bg-chula-light px-2 py-0.5 rounded-md">ภาพรวมความพร้อม</span>
+                            <h2 class="text-lg font-bold text-slate-800 mt-1">ความก้าวหน้าการอ่าน</h2>
+                            <p class="text-xs text-slate-500 mt-0.5" id="progressSummarySub">เก็บเนื้อหาแล้ว 0 จาก 0 บท</p>
+                        </div>
+                    </div>
+
+                    <!-- Countdown Cards -->
+                    <div class="grid grid-cols-2 gap-3 lg:col-span-2">
+                        <div class="bg-amber-50/60 border border-amber-200/60 p-3.5 rounded-xl">
+                            <div class="flex justify-between items-center text-xs font-medium text-amber-800 mb-1">
+                                <span>🎯 TGAT / TPAT3</span>
+                                <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">สอบ ม.ค. 70</span>
+                            </div>
+                            <div class="text-2xl font-bold text-amber-900" id="tpatCountdown">-- วัน</div>
+                            <p class="text-[11px] text-amber-700/80 mt-1">วัดความถนัดวิศวะ & ตรรกะทั่วไป</p>
+                        </div>
+
+                        <div class="bg-rose-50/60 border border-rose-200/60 p-3.5 rounded-xl">
+                            <div class="flex justify-between items-center text-xs font-medium text-rose-800 mb-1">
+                                <span>📝 A-Level (Math1/Phys)</span>
+                                <span class="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">สอบ มี.ค. 70</span>
+                            </div>
+                            <div class="text-2xl font-bold text-rose-900" id="alevelCountdown">-- วัน</div>
+                            <p class="text-[11px] text-rose-700/80 mt-1">วิชาประยุกต์และฟิสิกส์เข้มข้น</p>
+                        </div>
+                    </div>
+
+                    <!-- Track Selector & Quick Info -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/70 text-xs">
+                        <div class="font-medium text-slate-700 mb-2">เป้าหมายหลักสูตรของคุณ:</div>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200 hover:border-chula-pink transition-all">
+                                <input type="radio" name="targetTrackSelect" value="CP" checked onchange="handleTrackChange()" class="accent-chula-pink">
+                                <div>
+                                    <div class="font-bold text-slate-800">CP (วิศวกรรมคอมพิวเตอร์)</div>
+                                    <div class="text-[10px] text-slate-500">TPAT3 (40%), Math1 (20%), Phys (20%), TGAT (20%)</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200 hover:border-chula-pink transition-all">
+                                <input type="radio" name="targetTrackSelect" value="CEDT" onchange="handleTrackChange()" class="accent-chula-pink">
+                                <div>
+                                    <div class="font-bold text-slate-800">CEDT (คอมพิวเตอร์ & ดิจิทัล Sandbox)</div>
+                                    <div class="text-[10px] text-slate-500">Math1 (50%), TPAT3 (30%), TGAT (20%) [ไม่ใช้ Phys]</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 1: SYLLABUS CHECKLIST & PROGRESS -->
+        <section id="tab-checklist" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">รายการบทเรียนและสถานะการอ่าน (Exam Blueprint Checklist)</h2>
+                    <p class="text-xs text-slate-500">กดติ๊ก <span>✓</span> หัวข้อที่อ่านและซ้อมทำโจทย์เรียบร้อยแล้ว ระบบจะบันทึกให้อัตโนมัติ</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="filterChecklist('all')" id="filter-all-btn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-white">ทั้งหมด</button>
+                    <button onclick="filterChecklist('cp_required')" id="filter-cp-btn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">สำหรับ CP</button>
+                    <button onclick="filterChecklist('cedt_required')" id="filter-cedt-btn" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">สำหรับ CEDT</button>
+                    <button onclick="resetAllProgress()" class="px-3 py-1.5 text-xs font-medium rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 ml-2">รีเซ็ตทั้งหมด</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <!-- MATH 1 CHECKLIST -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                                <h3 class="font-bold text-slate-800">A-Level คณิตศาสตร์ประยุกต์ 1 (61)</h3>
+                            </div>
+                            <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full" id="prog-badge-math1">0%</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">ค่าน้ำหนัก: <strong>CP 20% | CEDT 50% (วิชาชี้ขาด!)</strong> • รวม 30 ข้อ (300 คะแนนเต็ม)</p>
+                        
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
+                            <div id="prog-bar-math1" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+
+                        <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1" id="list-math1">
+                            <!-- Items loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PHYSICS CHECKLIST -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                <h3 class="font-bold text-slate-800">A-Level ฟิสิกส์ (64)</h3>
+                                <span class="text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">เฉพาะ CP</span>
+                            </div>
+                            <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full" id="prog-badge-physics">0%</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">ค่าน้ำหนัก: <strong>CP 20% | CEDT 0% (ไม่ใช้คิดคะแนน)</strong> • รวม 30 ข้อ</p>
+                        
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
+                            <div id="prog-bar-physics" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+
+                        <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1" id="list-physics">
+                            <!-- Items loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TPAT3 CHECKLIST -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-chula-pink"></span>
+                                <h3 class="font-bold text-slate-800">TPAT3 ความถนัดวิทยาศาสตร์-วิศวกรรม (30)</h3>
+                            </div>
+                            <span class="text-xs font-semibold text-chula-pink bg-chula-light px-2.5 py-1 rounded-full" id="prog-badge-tpat3">0%</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">ค่าน้ำหนัก: <strong>CP 40% (วิชาชี้ขาด!) | CEDT 30%</strong> • รวม 70 ข้อ</p>
+                        
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
+                            <div id="prog-bar-tpat3" class="bg-chula-pink h-full w-0 transition-all duration-300"></div>
+                        </div>
+
+                        <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1" id="list-tpat3">
+                            <!-- Items loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TGAT CHECKLIST -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                                <h3 class="font-bold text-slate-800">TGAT ความถนัดทั่วไป (90: TGAT1,2,3)</h3>
+                            </div>
+                            <span class="text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full" id="prog-badge-tgat">0%</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">ค่าน้ำหนัก: <strong>CP 20% | CEDT 20%</strong> • 3 ส่วน (อังกฤษ, ตรรกะ, สมรรถนะ)</p>
+                        
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
+                            <div id="prog-bar-tgat" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+
+                        <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1" id="list-tgat">
+                            <!-- Items loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- TAB 2: SCORE CALCULATOR & BENCHMARK -->
+        <section id="tab-calc" class="tab-content hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="max-w-3xl mb-6">
+                    <h2 class="text-lg font-bold text-slate-800">ระบบประเมินและคำนวณคะแนนคัดเลือก (TCAS3 Admission)</h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        ทดลองกรอกคะแนนที่คาดว่าจะได้เพื่อคำนวณคะแนนถ่วงน้ำหนักตามสูตรคัดเลือกจริงของจุฬาฯ
+                        ระบบจะเปรียบเทียบกับคะแนนต่ำสุดย้อนหลัง (CP 72.29 / CEDT 58.02) และเกณฑ์ขั้นต่ำ 51%
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Calculator Inputs -->
+                    <div class="lg:col-span-6 space-y-4">
+                        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <span class="text-xs font-bold text-slate-700">เลือกคำนวณตามสูตรหลักสูตร:</span>
+                            <div class="flex gap-4">
+                                <label class="text-xs font-semibold flex items-center gap-1 cursor-pointer">
+                                    <input type="radio" name="calcTrack" value="CP" checked onchange="runScoreCalculation()" class="accent-chula-pink"> CP
+                                </label>
+                                <label class="text-xs font-semibold flex items-center gap-1 cursor-pointer">
+                                    <input type="radio" name="calcTrack" value="CEDT" onchange="runScoreCalculation()" class="accent-chula-pink"> CEDT
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs font-medium mb-1">
+                                <label for="input-tgat">TGAT รวม (เต็ม 100):</label>
+                                <span class="text-slate-500" id="weight-tgat-label">ถ่วงน้ำหนัก 20%</span>
+                            </div>
+                            <input type="number" id="input-tgat" min="0" max="100" value="65" oninput="runScoreCalculation()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-chula-pink focus:outline-none text-sm font-semibold text-slate-800">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs font-medium mb-1">
+                                <label for="input-tpat3">TPAT3 ความถนัดวิทย์-วิศวะ (เต็ม 100):</label>
+                                <span class="text-slate-500" id="weight-tpat3-label">ถ่วงน้ำหนัก 40%</span>
+                            </div>
+                            <input type="number" id="input-tpat3" min="0" max="100" value="70" oninput="runScoreCalculation()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-chula-pink focus:outline-none text-sm font-semibold text-slate-800">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs font-medium mb-1">
+                                <label for="input-math1">A-Level คณิตศาสตร์ประยุกต์ 1 (เต็ม 100):</label>
+                                <span class="text-slate-500" id="weight-math1-label">ถ่วงน้ำหนัก 20%</span>
+                            </div>
+                            <input type="number" id="input-math1" min="0" max="100" value="60" oninput="runScoreCalculation()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-chula-pink focus:outline-none text-sm font-semibold text-slate-800">
+                        </div>
+
+                        <div id="input-phys-container">
+                            <div class="flex justify-between text-xs font-medium mb-1">
+                                <label for="input-phys">A-Level ฟิสิกส์ (เต็ม 100):</label>
+                                <span class="text-slate-500" id="weight-phys-label">ถ่วงน้ำหนัก 20%</span>
+                            </div>
+                            <input type="number" id="input-phys" min="0" max="100" value="60" oninput="runScoreCalculation()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-chula-pink focus:outline-none text-sm font-semibold text-slate-800">
+                        </div>
+
+                        <!-- Result Box -->
+                        <div class="p-4 rounded-xl border bg-emerald-50 border-emerald-200 mt-4">
+                            <div class="text-xs font-medium text-emerald-800">คะแนนรวมประมาณการ (Weighted Total)</div>
+                            <div class="text-3xl font-extrabold text-emerald-900 my-1" id="calc-result-total">0.00 / 100</div>
+                            <div class="text-xs font-semibold text-emerald-700" id="calc-result-status">สถานะ: ประเมินผล...</div>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Chart -->
+                    <div class="lg:col-span-6 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800 mb-2">เปรียบเทียบคะแนนของคุณกับเกณฑ์ย้อนหลัง</h3>
+                            <p class="text-xs text-slate-500 mb-4">กราฟแสดงตำแหน่งคะแนนของคุณเมื่อเทียบกับเกณฑ์ขั้นต่ำประกาศรับ (51%) และคะแนนต่ำสุดย้อนหลังของทั้ง 2 หลักสูตร</p>
+                            <div class="chart-container">
+                                <canvas id="scoreBenchmarkChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 space-y-1">
+                            <div class="font-bold">⚠️ หมายเหตุเกณฑ์สำคัญ:</div>
+                            <div>• ทั้งหลักสูตร CP และ CEDT กำหนดเกณฑ์คะแนนรวมขั้นต่ำ **ไม่น้อยกว่า 51.00%** จึงจะมีสิทธิ์ได้รับการพิจารณา</div>
+                            <div>• หลักสูตร CEDT ไม่นำวิชา A-Level ฟิสิกส์ มาคิดคะแนน (คิด Math1 ถึง 50%)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: TCAS TIMELINE & CALENDAR -->
+        <section id="tab-calendar" class="tab-content hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">ปฏิทินสอบและกำหนดการ TCAS (ทปอ.)</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">วางแผนเตรียมตัวและอย่าพลาดวันสำคัญในการลงทะเบียนและสอบ</p>
+                    </div>
+                    <div class="text-xs bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg font-medium">
+                        อ้างอิงกำหนดการสอบมาตรฐาน ทปอ. (mytcas.com)
+                    </div>
+                </div>
+
+                <!-- Timeline List -->
+                <div class="relative border-l-2 border-slate-200 ml-4 space-y-8 py-2" id="tcas-timeline-container">
+                    <!-- Loaded dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: CURRICULUM STRATEGY & BLUEPRINT INFO -->
+        <section id="tab-info" class="tab-content hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-800 mb-4">เจาะลึกหลักสูตรและกลยุทธ์การพิชิตวิศวะคอมฯ จุฬาฯ</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <!-- CP Normal Track Card -->
+                    <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-bold text-slate-900 text-base">วิศวกรรมคอมพิวเตอร์ (CP - ภาคปกติ)</h3>
+                                <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded">เน้นทฤษฎี & วิจัย</span>
+                            </div>
+                            <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+                                มุ่งเน้นการสร้างรากฐานเชิงลึกทั้งฮาร์ดแวร์ ซอฟต์แวร์ สถาปัตยกรรมคอมพิวเตอร์ และวิทยาศาสตร์การคำนวณ เหมาะสำหรับผู้ที่ต้องการความเชี่ยวชาญรอบด้าน หรือต่อยอดระดับสูง
+                            </p>
+                            <div class="space-y-1.5 text-xs text-slate-700 font-medium mb-4">
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>TPAT3 (ความถนัดวิศวะ):</span><span class="font-bold text-chula-pink">40% (สำคัญที่สุด)</span></div>
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>A-Level Math 1 (61):</span><span class="font-bold">20%</span></div>
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>A-Level Physics (64):</span><span class="font-bold">20%</span></div>
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>TGAT (90):</span><span class="font-bold">20%</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
+                            <strong>💡 Strategy Key:</strong> ต้องทำคะแนน TPAT3 ให้สูงเข้าไว้ (เป้าหมาย 75+) เนื่องจากคิดน้ำหนักถึง 40% และต้องประคองฟิสิกส์ควบคู่กับคณิตศาสตร์
+                        </div>
+                    </div>
+
+                    <!-- CEDT Sandbox Track Card -->
+                    <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-bold text-slate-900 text-base">คอมพิวเตอร์และเทคโนโลยีดิจิทัล (CEDT Sandbox)</h3>
+                                <span class="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">เน้นปฏิบัติ & สตาร์ตอัป</span>
+                            </div>
+                            <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+                                หลักสูตร Sandbox ร่วมกับพาร์ตเนอร์อุตสาหกรรมกว่า 30 บริษัท เน้นลงมือทำจริง เรียนร่วมกับภาคเอกชน ประเมินแบบ Pass/Fail ในเทอมแรกเพื่อลดความกดดัน
+                            </p>
+                            <div class="space-y-1.5 text-xs text-slate-700 font-medium mb-4">
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>A-Level Math 1 (61):</span><span class="font-bold text-blue-600">50% (ชี้ขาดชะตา!)</span></div>
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>TPAT3 (ความถนัดวิศวะ):</span><span class="font-bold">30%</span></div>
+                                <div class="flex justify-between py-1 border-b border-slate-200"><span>TGAT (90):</span><span class="font-bold">20%</span></div>
+                                <div class="flex justify-between py-1 border-b border-slate-200 text-slate-400"><span>A-Level Physics (64):</span><span class="line-through">ไม่ใช้คะแนน</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
+                            <strong>💡 Strategy Key:</strong> ผู้สอบที่ไม่ถนัดฟิสิกส์จะเทน้ำหนักมาที่ CEDT ได้เปรียบมาก ต้องทุ่มสุดตัวกับ Math 1 ให้ได้ 65-70+ คะแนนขึ้นไป
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exam Blueprint Breakdown Table -->
+                <h3 class="text-sm font-bold text-slate-800 mb-3">สรุปโครงสร้างและจุดเน้นข้อสอบ (Blueprint Summary)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600 border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-800 border-b border-slate-200">
+                                <th class="p-3 font-semibold">รายวิชาสอบ</th>
+                                <th class="p-3 font-semibold">จำนวนข้อ / เวลา</th>
+                                <th class="p-3 font-semibold">บทที่ออกสอบเยอะ / จุดเก็บคะแนนสำคัญ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 border-b border-slate-200">
+                            <tr>
+                                <td class="p-3 font-medium text-slate-800">A-Level Math 1 (61)</td>
+                                <td class="p-3">30 ข้อ (ปรนัย 25 + อัตนัย 5) / 90 นาที</td>
+                                <td class="p-3">แคลคูลัส, สถิติและการแจกแจง, ลำดับและอนุกรม, ฟังก์ชัน & ตรีโกณมิติ</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-medium text-slate-800">A-Level Physics (64)</td>
+                                <td class="p-3">30 ข้อ (ปรนัย 25 + อัตนัย 5) / 90 นาที</td>
+                                <td class="p-3">กลศาสตร์ (งาน/พลังงาน/นิวตัน), ไฟฟ้าสถิตและกระแส, คลื่นและแสง, ฟิสิกส์ยุคใหม่</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-medium text-slate-800">TPAT3 (30)</td>
+                                <td class="p-3">70 ข้อ (ปรนัย) / 180 นาที</td>
+                                <td class="p-3">ความคิดเชิงวิศวกรรม (Engineering Thinking), มิติสัมพันธ์ (มองภาพ 3D/คลี่รูป), อนุกรมตัวเลข</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-medium text-slate-800">TGAT (90)</td>
+                                <td class="p-3">200 ข้อ / 180 นาที (แบ่ง 3 ส่วน)</td>
+                                <td class="p-3">TGAT1 ภาษาอังกฤษ, TGAT2 การคิดอย่างมีเหตุผล (ตรรกศาสตร์), TGAT3 สมรรถนะทำงาน</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4">
+            <p>ออกแบบและพัฒนาสำหรับผู้เตรียมตัวสอบคัดเลือกเข้า สาขาวิชาวิศวกรรมคอมพิวเตอร์ จุฬาลงกรณ์มหาวิทยาลัย (TCAS Admission)</p>
+            <p class="mt-1 text-slate-400">ข้อมูลอ้างอิงประกาศเกณฑ์การคัดเลือกและ Blueprint จาก สมาคม ทปอ. (mytcas.com)</p>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- DATA STRUCTURES ---
+
+        const SYLLABUS_DATA = {
+            math1: {
+                title: "A-Level คณิตศาสตร์ประยุกต์ 1 (61)",
+                color: "blue",
+                topics: [
+                    { id: "m1", text: "เซต และตรรกศาสตร์", reqCP: true, reqCEDT: true },
+                    { id: "m2", text: "จำนวนจริง และพหุนาม", reqCP: true, reqCEDT: true },
+                    { id: "m3", text: "ฟังก์ชัน / เอกซ์โพเนนเชียล & ลอการิทึม", reqCP: true, reqCEDT: true },
+                    { id: "m4", text: "ฟังก์ชันตรีโกณมิติและการประยุกต์", reqCP: true, reqCEDT: true },
+                    { id: "m5", text: "เมทริกซ์", reqCP: true, reqCEDT: true },
+                    { id: "m6", text: "ลำดับและอนุกรม (อนันต์ & เรขาคณิต)", reqCP: true, reqCEDT: true },
+                    { id: "m7", text: "เรขาคณิตวิเคราะห์ & ภาคตัดกรวย", reqCP: true, reqCEDT: true },
+                    { id: "m8", text: "เวกเตอร์ในสามมิติ", reqCP: true, reqCEDT: true },
+                    { id: "m9", text: "แคลคูลัส (ลิมิต อนุพันธ์ อินทิเกรต)", reqCP: true, reqCEDT: true },
+                    { id: "m10", text: "หลักการนับเบื้องต้น & ความน่าจะเป็น", reqCP: true, reqCEDT: true },
+                    { id: "m11", text: "สถิติ & การแจกแจงความน่าจะเป็นของตัวแปรสุ่ม", reqCP: true, reqCEDT: true }
+                ]
+            },
+            physics: {
+                title: "A-Level ฟิสิกส์ (64)",
+                color: "emerald",
+                topics: [
+                    { id: "p1", text: "กลศาสตร์: การเคลื่อนที่แนวตรง & กฎนิวตัน", reqCP: true, reqCEDT: false },
+                    { id: "p2", text: "กลศาสตร์: งานและพลังงาน / โมเมนตัม", reqCP: true, reqCEDT: false },
+                    { id: "p3", text: "กลศาสตร์: การเคลื่อนที่แบบวงกลม & SHM", reqCP: true, reqCEDT: false },
+                    { id: "p4", text: "กลศาสตร์: สมดุลกล & ของไหล", reqCP: true, reqCEDT: false },
+                    { id: "p5", text: "คลื่นกล / เสียง / แสงเชิงรังสีและกายภาพ", reqCP: true, reqCEDT: false },
+                    { id: "p6", text: "ไฟฟ้าสถิต & ไฟฟ้ากระแสตรง", reqCP: true, reqCEDT: false },
+                    { id: "p7", text: "ไฟฟ้ากระแสสลับ & แม่เหล็กไฟฟ้า", reqCP: true, reqCEDT: false },
+                    { id: "p8", text: "ความร้อน แก๊ส & ทฤษฎีจลน์", reqCP: true, reqCEDT: false },
+                    { id: "p9", text: "ฟิสิกส์ยุคใหม่: อะตอม ควอนตัม นิวเคลียร์", reqCP: true, reqCEDT: false }
+                ]
+            },
+            tpat3: {
+                title: "TPAT3 ความถนัดวิทยาศาสตร์-วิศวกรรมศาสตร์",
+                color: "pink",
+                topics: [
+                    { id: "t3_1", text: "อนุกรมตัวเลข & ความสามารถทางคำนวณ", reqCP: true, reqCEDT: true },
+                    { id: "t3_2", text: "มิติสัมพันธ์ 3 มิติ / ภาพคลี่ / หมุนรูป", reqCP: true, reqCEDT: true },
+                    { id: "t3_3", text: "การวิเคราะห์เชิงกล & ฟิสิกส์ประยุกต์พื้นฐาน", reqCP: true, reqCEDT: true },
+                    { id: "t3_4", text: "ความคิดวิเคราะห์เชิงวิศวกรรม (Engineering Thinking)", reqCP: true, reqCEDT: true },
+                    { id: "t3_5", text: "ความรู้รอบตัวเทคโนโลยี คอมพิวเตอร์ & นวัตกรรม", reqCP: true, reqCEDT: true }
+                ]
+            },
+            tgat: {
+                title: "TGAT ความถนัดทั่วไป (TGAT1-3)",
+                color: "amber",
+                topics: [
+                    { id: "tg1", text: "TGAT1 (91) English Communication", reqCP: true, reqCEDT: true },
+                    { id: "tg2", text: "TGAT2 (92) การคิดอย่างมีเหตุผล (Logical Reasoning)", reqCP: true, reqCEDT: true },
+                    { id: "tg3", text: "TGAT3 (93) สมรรถนะการทำงานในอนาคต", reqCP: true, reqCEDT: true }
+                ]
+            }
+        };
+
+        const TIMELINE_EVENTS = [
+            { date: "28 ต.ค. เป็นต้นไป", title: "ลงทะเบียนใช้งานระบบ mytcas.com", desc: "สร้างบัญชีผู้ใช้ ยืนยันตัวตนเพื่อเตรียมยื่นสมัครสอบ", status: "completed" },
+            { date: "4 – 10 พ.ย.", title: "สมัครสอบ TGAT / TPAT2-5", desc: "เลือกวิชาและสนามสอบ ชำระเงินค่าสมัคร", status: "upcoming" },
+            { date: "30 ม.ค.", title: "วันสอบ TPAT3 & TGAT", desc: "สอบ TPAT3 (เช้า 09.00-12.00 น.) / สอบ TGAT (บ่าย 13.00-16.00 น.)", status: "highlight" },
+            { date: "14 – 20 ม.ค.", title: "สมัครสอบ A-Level", desc: "เลือกสมัครสอบ Math 1 (61) และ ฟิสิกส์ (64)", status: "upcoming" },
+            { date: "13 มี.ค.", title: "วันสอบ A-Level ฟิสิกส์ (64)", desc: "เวลาสอบ 11.00 - 12.30 น.", status: "highlight" },
+            { date: "14 มี.ค.", title: "วันสอบ A-Level คณิตศาสตร์ประยุกต์ 1 (61)", desc: "เวลาสอบ 08.30 - 10.00 น. (วิชาชี้ขาด)", status: "highlight" },
+            { date: "28 ก.พ.", title: "ประกาศผลสอบ TGAT / TPAT3", desc: "ตรวจสอบคะแนนผ่านระบบ mytcas.com", status: "upcoming" },
+            { date: "20 เม.ย.", title: "ประกาศผลสอบ A-Level", desc: "นำคะแนนมาคำนวณเพื่อยื่นคัดเลือก", status: "upcoming" },
+            { date: "7 – 11 พ.ค.", title: "สมัครคัดเลือก TCAS รอบที่ 3 Admission", desc: "ยื่นเลือกอันดับสาขาวิชาในระบบ mytcas (ยื่น CP / CEDT)", status: "critical" },
+            { date: "22 & 27 พ.ค.", title: "ประกาศผลการคัดเลือก รอบที่ 3", desc: "ประกาศผลประมวลผลครั้งที่ 1 และ 2", status: "critical" }
+        ];
+
+        // --- APP STATE ---
+        let userProgressState = JSON.parse(localStorage.getItem('cu_comp_checklist_v2')) || {};
+        let currentFilter = 'all';
+        let currentTargetTrack = 'CP';
+        let progressChartInstance = null;
+        let scoreBenchmarkChartInstance = null;
+
+        // --- INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            renderChecklists();
+            renderTimeline();
+            initCharts();
+            updateCountdowns();
+            runScoreCalculation();
+        });
+
+        // --- NAVIGATION CONTROLLER ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            const navBtns = {
+                checklist: 'nav-checklist-btn',
+                calc: 'nav-calc-btn',
+                calendar: 'nav-calendar-btn',
+                info: 'nav-info-btn'
+            };
+
+            Object.keys(navBtns).forEach(k => {
+                const btn = document.getElementById(navBtns[k]);
+                if (k === tabId) {
+                    btn.className = "px-4 py-2 text-xs font-semibold rounded-lg bg-white text-slate-800 shadow-sm transition-all";
+                } else {
+                    btn.className = "px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all";
+                }
+            });
+
+            if (tabId === 'calc' && scoreBenchmarkChartInstance) {
+                setTimeout(() => scoreBenchmarkChartInstance.update(), 100);
+            }
+        }
+
+        // --- CHECKLIST & PROGRESS LOGIC ---
+        function renderChecklists() {
+            Object.keys(SYLLABUS_DATA).forEach(subjectKey => {
+                const container = document.getElementById(`list-${subjectKey}`);
+                const data = SYLLABUS_DATA[subjectKey];
+                container.innerHTML = '';
+
+                data.topics.forEach(topic => {
+                    // Apply Filter Condition
+                    if (currentFilter === 'cp_required' && !topic.reqCP) return;
+                    if (currentFilter === 'cedt_required' && !topic.reqCEDT) return;
+
+                    const isChecked = !!userProgressState[topic.id];
+                    const itemEl = document.createElement('label');
+                    itemEl.className = `flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                        isChecked 
+                            ? 'bg-emerald-50/70 border-emerald-200 text-slate-700 line-through' 
+                            : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
+                    }`;
+
+                    itemEl.innerHTML = `
+                        <div class="flex items-center gap-2.5">
+                            <input type="checkbox" data-id="${topic.id}" ${isChecked ? 'checked' : ''} 
+                                   onchange="toggleTopic('${topic.id}')" 
+                                   class="w-4 h-4 rounded text-chula-pink focus:ring-chula-pink accent-chula-pink cursor-pointer">
+                            <span class="${isChecked ? 'text-slate-400' : 'font-medium'}">${topic.text}</span>
+                        </div>
+                        <div class="flex gap-1 text-[9px]">
+                            ${topic.reqCP ? '<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">CP</span>' : ''}
+                            ${topic.reqCEDT ? '<span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-semibold">CEDT</span>' : ''}
+                        </div>
+                    `;
+                    container.appendChild(itemEl);
+                });
+            });
+
+            updateProgressCalculations();
+        }
+
+        function toggleTopic(id) {
+            userProgressState[id] = !userProgressState[id];
+            localStorage.setItem('cu_comp_checklist_v2', JSON.stringify(userProgressState));
+            renderChecklists();
+        }
+
+        function filterChecklist(filterType) {
+            currentFilter = filterType;
+            ['all', 'cp', 'cedt'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}-btn`);
+                if (btn) {
+                    if (f === filterType || (f === 'all' && filterType === 'all')) {
+                        btn.className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-white";
+                    } else {
+                        btn.className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200";
+                    }
+                }
+            });
+            renderChecklists();
+        }
+
+        function resetAllProgress() {
+            if (confirm("คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตสถานะการอ่านหนังสือทั้งหมด?")) {
+                userProgressState = {};
+                localStorage.removeItem('cu_comp_checklist_v2');
+                renderChecklists();
+            }
+        }
+
+        function updateProgressCalculations() {
+            let totalTopicsCount = 0;
+            let completedTopicsCount = 0;
+
+            Object.keys(SYLLABUS_DATA).forEach(subjectKey => {
+                const topics = SYLLABUS_DATA[subjectKey].topics;
+                const subjectTotal = topics.length;
+                let subjectDone = 0;
+
+                topics.forEach(t => {
+                    if (userProgressState[t.id]) subjectDone++;
+                });
+
+                totalTopicsCount += subjectTotal;
+                completedTopicsCount += subjectDone;
+
+                const percent = Math.round((subjectDone / subjectTotal) * 100) || 0;
+                document.getElementById(`prog-badge-${subjectKey}`).innerText = `${percent}%`;
+                document.getElementById(`prog-bar-${subjectKey}`).style.width = `${percent}%`;
+            });
+
+            const overallPercent = Math.round((completedTopicsCount / totalTopicsCount) * 100) || 0;
+            document.getElementById('overallPercentText').innerText = `${overallPercent}%`;
+            document.getElementById('progressSummarySub').innerText = `เก็บเนื้อหาแล้ว ${completedTopicsCount} จาก ${totalTopicsCount} บท`;
+
+            if (progressChartInstance) {
+                progressChartInstance.data.datasets[0].data = [overallPercent, 100 - overallPercent];
+                progressChartInstance.update();
+            }
+        }
+
+        function handleTrackChange() {
+            const track = document.querySelector('input[name="targetTrackSelect"]:checked').value;
+            currentTargetTrack = track;
+            
+            // Sync with Score Calc tab
+            const calcRadios = document.querySelectorAll('input[name="calcTrack"]');
+            calcRadios.forEach(r => { if (r.value === track) r.checked = true; });
+            runScoreCalculation();
+        }
+
+        // --- SCORE CALCULATOR LOGIC ---
+        function runScoreCalculation() {
+            const track = document.querySelector('input[name="calcTrack"]:checked')?.value || 'CP';
+            const tgat = parseFloat(document.getElementById('input-tgat').value) || 0;
+            const tpat3 = parseFloat(document.getElementById('input-tpat3').value) || 0;
+            const math1 = parseFloat(document.getElementById('input-math1').value) || 0;
+            const phys = parseFloat(document.getElementById('input-phys').value) || 0;
+
+            const physContainer = document.getElementById('input-phys-container');
+            let totalWeightedScore = 0;
+
+            if (track === 'CP') {
+                physContainer.style.display = 'block';
+                document.getElementById('weight-tgat-label').innerText = 'ถ่วงน้ำหนัก 20%';
+                document.getElementById('weight-tpat3-label').innerText = 'ถ่วงน้ำหนัก 40%';
+                document.getElementById('weight-math1-label').innerText = 'ถ่วงน้ำหนัก 20%';
+                
+                totalWeightedScore = (tgat * 0.20) + (tpat3 * 0.40) + (math1 * 0.20) + (phys * 0.20);
+            } else {
+                physContainer.style.display = 'none';
+                document.getElementById('weight-tgat-label').innerText = 'ถ่วงน้ำหนัก 20%';
+                document.getElementById('weight-tpat3-label').innerText = 'ถ่วงน้ำหนัก 30%';
+                document.getElementById('weight-math1-label').innerText = 'ถ่วงน้ำหนัก 50%';
+
+                totalWeightedScore = (tgat * 0.20) + (tpat3 * 0.30) + (math1 * 0.50);
+            }
+
+            const totalEl = document.getElementById('calc-result-total');
+            const statusEl = document.getElementById('calc-result-status');
+            totalEl.innerText = `${totalWeightedScore.toFixed(2)} / 100`;
+
+            const cutoffCP = 72.29;
+            const cutoffCEDT = 58.02;
+
+            if (track === 'CP') {
+                if (totalWeightedScore >= cutoffCP) {
+                    statusEl.innerText = '🟢 ผลประเมิน: สูงกว่าเกณฑ์คะแนนต่ำสุด CP ปีก่อน (โอกาสติดสูงมาก)';
+                } else if (totalWeightedScore >= 51.0) {
+                    statusEl.innerText = '🟡 ผลประเมิน: ผ่านเกณฑ์ขั้นต่ำ 51% (แต่ยังต่ำกว่าคะแนนต่ำสุดปีก่อนเล็กน้อย)';
+                } else {
+                    statusEl.innerText = '🔴 ผลประเมิน: ต่ำกว่าเกณฑ์ขั้นต่ำ 51.00% (ไม่ผ่านเกณฑ์ยื่นสมัคร)';
+                }
+            } else {
+                if (totalWeightedScore >= 62.0) {
+                    statusEl.innerText = '🟢 ผลประเมิน: คะแนนอยู่ในเกณฑ์ปลอดภัยของ CEDT (โอกาสติดสูงมาก)';
+                } else if (totalWeightedScore >= cutoffCEDT) {
+                    statusEl.innerText = '🟡 ผลประเมิน: ใกล้เคียงคะแนนต่ำสุด CEDT ปีก่อน (มีลุ้น)';
+                } else if (totalWeightedScore >= 51.0) {
+                    statusEl.innerText = '🟡 ผลประเมิน: ผ่านเกณฑ์ขั้นต่ำ 51% (ต้องพยายามทำคะแนนเพิ่ม)';
+                } else {
+                    statusEl.innerText = '🔴 ผลประเมิน: ต่ำกว่าเกณฑ์ขั้นต่ำ 51.00% (ไม่ผ่านเกณฑ์ยื่นสมัคร)';
+                }
+            }
+
+            // Update Chart
+            if (scoreBenchmarkChartInstance) {
+                scoreBenchmarkChartInstance.data.datasets[0].data = [
+                    totalWeightedScore, 
+                    track === 'CP' ? cutoffCP : cutoffCEDT, 
+                    51.00
+                ];
+                scoreBenchmarkChartInstance.update();
+            }
+        }
+
+        // --- TIMELINE RENDERER ---
+        function renderTimeline() {
+            const container = document.getElementById('tcas-timeline-container');
+            container.innerHTML = '';
+
+            TIMELINE_EVENTS.forEach(ev => {
+                const item = document.createElement('div');
+                item.className = "relative pl-6";
+
+                let badgeColor = "bg-slate-400";
+                if (ev.status === 'completed') badgeColor = "bg-emerald-500";
+                if (ev.status === 'highlight') badgeColor = "bg-chula-pink";
+                if (ev.status === 'critical') badgeColor = "bg-rose-600";
+
+                item.innerHTML = `
+                    <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full ${badgeColor} border-2 border-white shadow-sm"></div>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <span class="text-xs font-bold text-chula-pink">${ev.date}</span>
+                        <span class="text-[10px] text-slate-400">TCAS Admission</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-slate-800 mt-0.5">${ev.title}</h4>
+                    <p class="text-xs text-slate-500 mt-0.5">${ev.desc}</p>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // --- COUNTDOWN TIMERS ---
+        function updateCountdowns() {
+            const now = new Date();
+            
+            // Expected target dates for TCAS69 (Adjusted dynamically if target year passed)
+            let currentYear = now.getFullYear();
+            let tpatDate = new Date(`${currentYear + 1}-01-30T09:00:00`);
+            let alevelDate = new Date(`${currentYear + 1}-03-13T08:30:00`);
+
+            const diffTpat = Math.ceil((tpatDate - now) / (1000 * 60 * 60 * 24));
+            const diffAlevel = Math.ceil((alevelDate - now) / (1000 * 60 * 60 * 24));
+
+            document.getElementById('tpatCountdown').innerText = diffTpat > 0 ? `${diffTpat} วัน` : 'สอบแล้ว';
+            document.getElementById('alevelCountdown').innerText = diffAlevel > 0 ? `${diffAlevel} วัน` : 'สอบแล้ว';
+        }
+
+        // --- CHART.JS INITIALIZATION ---
+        function initCharts() {
+            // 1. Overall Progress Donut Chart
+            const ctxProgress = document.getElementById('overallProgressChart').getContext('2d');
+            progressChartInstance = new Chart(ctxProgress, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [0, 100],
+                        backgroundColor: ['#DE1C7D', '#F1F5F9'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '80%',
+                    plugins: { tooltip: { enabled: false } }
+                }
+            });
+
+            // 2. Score Benchmark Chart
+            const ctxScore = document.getElementById('scoreBenchmarkChart').getContext('2d');
+            scoreBenchmarkChartInstance = new Chart(ctxScore, {
+                type: 'bar',
+                data: {
+                    labels: ['คะแนนของคุณ', 'คะแนนต่ำสุดปีก่อน', 'เกณฑ์ขั้นต่ำจุฬาฯ'],
+                    datasets: [{
+                        label: 'คะแนนถ่วงน้ำหนัก',
+                        data: [0, 72.29, 51.00],
+                        backgroundColor: ['#DE1C7D', '#3B82F6', '#94A3B8'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: '#F1F5F9' }
+                        },
+                        y: {
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => ` ${context.raw.toFixed(2)} คะแนน`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
